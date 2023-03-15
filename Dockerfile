@@ -2,6 +2,10 @@ FROM centos:7
 LABEL maintainer="Jeff Geerling"
 ENV container=docker
 
+# fixed problem with python and pip3 install ansible
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+
 ENV pip_packages "ansible"
 
 # Install systemd -- See https://hub.docker.com/_/centos/
@@ -23,16 +27,25 @@ RUN yum makecache fast \
       sudo \
       which \
       python-pip \
+      python3 \
  && yum clean all
 
-# Upgrade Pip so cryptography package works.
-RUN python -m pip install --upgrade pip==20.3.4
+# Upgrade pip to latest version.
+RUN pip3 install --upgrade pip
 
 # Install Ansible via Pip.
-RUN pip install $pip_packages
+RUN pip3 install $pip_packages
 
 # Disable requiretty.
 RUN sed -i -e 's/^\(Defaults\s*requiretty\)/#--- \1/'  /etc/sudoers
+
+# Create `ansible` user with sudo permissions
+ENV ANSIBLE_USER=ansible SUDO_GROUP=wheel
+RUN set -xe \
+  && groupadd -r ${ANSIBLE_USER} \
+  && useradd -m -g ${ANSIBLE_USER} ${ANSIBLE_USER} \
+  && usermod -aG ${SUDO_GROUP} ${ANSIBLE_USER} \
+  && sed -i "/^%${SUDO_GROUP}/s/ALL\$/NOPASSWD:ALL/g" /etc/sudoers
 
 # Install Ansible inventory file.
 RUN mkdir -p /etc/ansible
